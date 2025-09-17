@@ -1,0 +1,9 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "DOTNET_ENVIRONMENT": "Development",
+    "ServiceBusConnection": "<replace-with-the-service-bus-connection-string>"
+  }
+}
