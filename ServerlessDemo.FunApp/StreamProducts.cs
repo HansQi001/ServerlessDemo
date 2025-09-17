@@ -1,4 +1,4 @@
-using AutoMapper;
+using AgileObjects.AgileMapper;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.EntityFrameworkCore;
@@ -41,7 +41,7 @@ public class StreamProducts
         response.Headers.Add("Content-Type", "application/x-ndjson");
 
         var products = _dbContext.Products.AsNoTracking()
-            .Select(p => _mapper.Map<ProductSummaryDTO>(p))
+            .Select(p => _mapper.Map(p).ToANew<ProductSummaryDTO>())
             .AsAsyncEnumerable();
 
         await foreach (var product in products)

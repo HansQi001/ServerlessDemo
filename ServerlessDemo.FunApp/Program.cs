@@ -1,3 +1,4 @@
+using AgileObjects.AgileMapper;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -5,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ServerlessDemo.FunApp.Infrastructure;
 using ServerlessDemo.FunApp.Models.Entities;
-using System.Reflection;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
@@ -13,17 +13,18 @@ builder.ConfigureFunctionsWebApplication();
 
 builder.Services
     .AddApplicationInsightsTelemetryWorkerService()
-    .ConfigureFunctionsApplicationInsights();
+    .ConfigureFunctionsApplicationInsights()
+    .AddSingleton(Mapper.CreateNew()); // Add AgileMapper as a singleton
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseInMemoryDatabase("ServerlessDb");
 });
 
-builder.Services.AddAutoMapper(cfg =>
-{
-    cfg.AddMaps(Assembly.GetExecutingAssembly());
-});
+//builder.Services.AddAutoMapper(cfg =>
+//{
+//    cfg.AddMaps(Assembly.GetExecutingAssembly());
+//});
 
 var app = builder.Build();
 

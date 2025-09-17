@@ -361,3 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/ServerlessDemo.FunApp/local.settings.json
+/ServerlessDemo.ServiceBusClient/local.setting.json
+/ServerlessDemo.FunApp/local.settings.json
+/ServerlessDemo.FunApp/local.settings.json
+/ServerlessDemo.ServiceBusClient/local.settings.json
