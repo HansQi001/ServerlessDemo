@@ -5,6 +5,8 @@ VisualStudioVersion = 17.14.36429.23
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServerlessDemo.FunApp", "ServerlessDemo.FunApp\ServerlessDemo.FunApp.csproj", "{F44A9583-A82B-4761-B285-312345FBAEC4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServerlessDemo.ServiceBusClient", "ServerlessDemo.ServiceBusClient\ServerlessDemo.ServiceBusClient.csproj", "{8F6061AB-D341-4A3F-A016-2B9F897E0A55}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{F44A9583-A82B-4761-B285-312345FBAEC4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F44A9583-A82B-4761-B285-312345FBAEC4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F44A9583-A82B-4761-B285-312345FBAEC4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8F6061AB-D341-4A3F-A016-2B9F897E0A55}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8F6061AB-D341-4A3F-A016-2B9F897E0A55}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8F6061AB-D341-4A3F-A016-2B9F897E0A55}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8F6061AB-D341-4A3F-A016-2B9F897E0A55}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
