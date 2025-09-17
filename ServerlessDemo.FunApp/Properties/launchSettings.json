@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "ServerlessDemo.FunApp": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7127",
+      "launchBrowser": false
+    }
+  }
+}
