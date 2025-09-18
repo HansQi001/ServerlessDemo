@@ -34,7 +34,7 @@ builder.Services
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseInMemoryDatabase("ServerlessDb");
-});
+}, ServiceLifetime.Singleton); // make sure on Azure, different Functions use the same in-memoty db
 
 var app = builder.Build();
 
