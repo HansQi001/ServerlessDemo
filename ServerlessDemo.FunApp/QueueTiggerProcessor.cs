@@ -36,7 +36,7 @@ public class QueueTiggerProcessor
             {
                 var product = await _dbContext.Products.FindAsync(messageContent.Ids[i]);
 
-                if (product!=null)
+                if (product != null)
                 {
                     product.Status = "Inactive";
                     product.LastModifiedAt = DateTime.UtcNow;
@@ -53,6 +53,12 @@ public class QueueTiggerProcessor
                 _logger.LogError(ex.InnerException?.Message);
             }
 
+            var updatedProduct = await _dbContext.Products.FindAsync(messageContent.Ids[0]);
+            if (updatedProduct != null)
+            {
+                _logger.LogInformation($"The first one's Status: {updatedProduct.Status}");
+                _logger.LogInformation($"And Last Modified: {updatedProduct.LastModifiedAt?.ToString() ?? string.Empty}");
+            }
         }
 
         // Complete the message
