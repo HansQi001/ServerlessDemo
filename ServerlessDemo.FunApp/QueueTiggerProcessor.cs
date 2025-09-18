@@ -4,6 +4,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using ServerlessDemo.FunApp.Infrastructure;
 using ServerlessDemo.FunApp.Models.DTOs;
+using ServerlessDemo.FunApp.Models.Entities;
 
 namespace ServerlessDemo.FunApp;
 
@@ -34,14 +35,18 @@ public class QueueTiggerProcessor
         {
             for (var i = 0; i < messageContent.Ids.Length; i++)
             {
-                var product = await _dbContext.Products.FindAsync(messageContent.Ids[i]);
-
-                if (product != null)
+                var product = new Product
                 {
-                    product.Status = "Inactive";
-                    product.LastModifiedAt = DateTime.UtcNow;
-                }
+                    Id = messageContent.Ids[i],
+                    Status = "Inactive",
+                    LastModifiedAt = DateTime.UtcNow
+                };
+
+                var entry = _dbContext.Entry(product);
+                entry.Property(p => p.Status).IsModified = true;
+                entry.Property(p => p.LastModifiedAt).IsModified = true;
             }
+
             try
             {
                 await _dbContext.SaveChangesAsync();
