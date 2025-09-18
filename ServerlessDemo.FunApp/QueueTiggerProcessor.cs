@@ -1,6 +1,7 @@
 using AgileObjects.AgileMapper;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using Microsoft.Extensions.Logging;
 using ServerlessDemo.FunApp.Infrastructure;
 using ServerlessDemo.FunApp.Models.DTOs;
@@ -47,11 +48,21 @@ public class QueueTiggerProcessor
                 entry.Property(p => p.Status).IsModified = true;
                 entry.Property(p => p.LastModifiedAt).IsModified = true;
             }
-
-            await _dbContext.SaveChangesAsync();
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+                _logger.LogInformation($"Products updated");
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex.Message);
+                _logger.LogError(ex.InnerException?.Message);
+            }
+            
         }
 
         // Complete the message
         await messageActions.CompleteMessageAsync(message);
+
+        _logger.LogInformation($"Message completed");
     }
 }
