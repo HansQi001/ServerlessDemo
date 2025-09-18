@@ -1,9 +1,3 @@
-﻿namespace ServerlessDemo.FunApp.Models.DTOs
-{
-    internal class ProductSummaryDTO
-    {
-        public int Id { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public decimal Price { get; set; }
-    }
-}
+﻿namespace ServerlessDemo.FunApp.Models.DTOs;
+
+internal record ProductSummaryDTO(int Id, string Name, string Status, string CreatedAt, string LastModifiedAt);

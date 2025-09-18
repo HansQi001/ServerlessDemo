@@ -16,6 +16,8 @@ namespace ServerlessDemo.FunApp.Models.Entities
 
         public int Stock { get; set; }
 
+        public string Status { get; set; } = "Active";
+
         [Required]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

@@ -4,6 +4,7 @@
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
     "DOTNET_ENVIRONMENT": "Development",
+    "QueueName": "hans-queue",
     "ServiceBusConnection": "<replace-with-the-service-bus-connection-string>"
   }
 }

@@ -6,25 +6,35 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ServerlessDemo.FunApp.Infrastructure;
 using ServerlessDemo.FunApp.Models.Entities;
+using ServerlessDemo.FunApp.Models.MappingConfigs;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
 builder.ConfigureFunctionsWebApplication();
 
+IMapper mapper = Mapper.CreateNew();
+// Find all IMappingConfig implementations in the current assembly
+var mappingConfigs = typeof(Program).Assembly
+    .GetTypes()
+    .Where(t => typeof(IMappingConfig).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+    .Select(Activator.CreateInstance)
+    .Cast<IMappingConfig>();
+
+// Apply each config
+foreach (var config in mappingConfigs)
+{
+    config.Configure(mapper);
+}
+
 builder.Services
     .AddApplicationInsightsTelemetryWorkerService()
     .ConfigureFunctionsApplicationInsights()
-    .AddSingleton(Mapper.CreateNew()); // Add AgileMapper as a singleton
+    .AddSingleton(mapper); // Add AgileMapper as a singleton
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseInMemoryDatabase("ServerlessDb");
 });
-
-//builder.Services.AddAutoMapper(cfg =>
-//{
-//    cfg.AddMaps(Assembly.GetExecutingAssembly());
-//});
 
 var app = builder.Build();
 
