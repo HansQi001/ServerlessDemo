@@ -1,11 +1,9 @@
 using AgileObjects.AgileMapper;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using Microsoft.Extensions.Logging;
 using ServerlessDemo.FunApp.Infrastructure;
 using ServerlessDemo.FunApp.Models.DTOs;
-using ServerlessDemo.FunApp.Models.Entities;
 
 namespace ServerlessDemo.FunApp;
 
@@ -36,28 +34,25 @@ public class QueueTiggerProcessor
         {
             for (var i = 0; i < messageContent.Ids.Length; i++)
             {
-                var product = new Product
+                var product = await _dbContext.Products.FindAsync(messageContent.Ids[i]);
+
+                if (product!=null)
                 {
-                    Id = messageContent.Ids[i],
-                    Status = "Inactive",
-                    LastModifiedAt = DateTime.UtcNow
-                };
-
-                var entry = _dbContext.Attach(product);
-
-                entry.Property(p => p.Status).IsModified = true;
-                entry.Property(p => p.LastModifiedAt).IsModified = true;
+                    product.Status = "Inactive";
+                    product.LastModifiedAt = DateTime.UtcNow;
+                }
             }
             try
             {
                 await _dbContext.SaveChangesAsync();
                 _logger.LogInformation($"Products updated");
             }
-            catch (Exception ex) {
+            catch (Exception ex)
+            {
                 _logger.LogError(ex.Message);
                 _logger.LogError(ex.InnerException?.Message);
             }
-            
+
         }
 
         // Complete the message
