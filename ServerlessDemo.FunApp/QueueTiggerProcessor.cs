@@ -42,10 +42,10 @@ public class QueueTiggerProcessor
                     LastModifiedAt = DateTime.UtcNow
                 };
 
-                _dbContext.Attach(product);
+                var entry = _dbContext.Attach(product);
 
-                _dbContext.Entry(product).Property(p => p.Status).IsModified = true;
-                _dbContext.Entry(product).Property(p => p.LastModifiedAt).IsModified = true;
+                entry.Property(p => p.Status).IsModified = true;
+                entry.Property(p => p.LastModifiedAt).IsModified = true;
             }
 
             await _dbContext.SaveChangesAsync();
