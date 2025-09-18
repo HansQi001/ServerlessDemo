@@ -1,14 +1,22 @@
 using AgileObjects.AgileMapper;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Builder;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using ServerlessDemo.FunApp.Infrastructure;
 using ServerlessDemo.FunApp.Models.Entities;
 using ServerlessDemo.FunApp.Models.MappingConfigs;
 
 var builder = FunctionsApplication.CreateBuilder(args);
+
+// Register CosmosClient as a singleton
+builder.Services.AddSingleton(sp =>
+{
+    var connectionString = Environment.GetEnvironmentVariable("CosmosDBConnection");
+    return new CosmosClient(connectionString, new CosmosClientOptions { AllowBulkExecution = true });
+});
+
+await SeedTestDataAsync(builder.Services.BuildServiceProvider());
 
 builder.ConfigureFunctionsWebApplication();
 
@@ -31,33 +39,59 @@ builder.Services
     .ConfigureFunctionsApplicationInsights()
     .AddSingleton(mapper); // Add AgileMapper as a singleton
 
-builder.Services.AddDbContext<AppDbContext>(options =>
+//builder.Services.AddDbContext<AppDbContext>(options =>
+//{
+//    options.UseInMemoryDatabase("ServerlessDb");
+//});
+
+
+builder.Build().Run();
+
+static async Task SeedTestDataAsync(IServiceProvider services)
 {
-    options.UseInMemoryDatabase("ServerlessDb");
-});
+    var client = services.GetRequiredService<CosmosClient>();
+    var container = client.GetContainer("ServerlessDemo", "Products");
 
-var app = builder.Build();
+    // Check if any records exist
+    var iterator = container.GetItemQueryIterator<Product>("SELECT TOP 1 * FROM c");
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-    if (!db.Products.Any())
+    if (iterator.HasMoreResults)
     {
-        var products = Enumerable.Range(1, 1000)
-                .Select(i => new Product
-                {
-                    Name = $"Product {i}",
-                    Price = Math.Round((decimal)(i * 0.5), 2),
-                    Stock = i % 100
-                })
-                .ToArray();
-
-        db.Products.AddRange(products);
+        var firstPage = await iterator.ReadNextAsync();
+        if (firstPage.Count > 0)
+        {
+            Console.WriteLine("Seed data already exists — skipping insert.");
+            return;
+        }
     }
 
-    db.SaveChanges();
+    Console.WriteLine("No data found — inserting seed products...");
+
+    var testProducts = Enumerable.Range(1, 100)
+            .Select(i => new Product
+            {
+                Name = $"Product {i}",
+                Price = Math.Round((decimal)(i * 0.5), 2),
+                Stock = i % 100
+            })
+            .ToList();
+    
+    try
+    {
+        //await container.UpsertItemAsync(testProducts[0], new PartitionKey(testProducts[0].Id));
+
+        // bulk Upsert
+        var tasks = testProducts.Select(async p =>
+                   await container.UpsertItemAsync(p, new PartitionKey(p.Id)));
+
+        await Task.WhenAll(tasks);
+
+        Console.WriteLine("Seed data inserted.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex.ToString());
+    }
 }
-app.Run();
 
 public partial class Program { }

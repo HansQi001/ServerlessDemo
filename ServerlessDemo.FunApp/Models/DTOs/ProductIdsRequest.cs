@@ -1,8 +1,11 @@
-﻿namespace ServerlessDemo.FunApp.Models.DTOs
+﻿using System.Text.Json.Serialization;
+
+namespace ServerlessDemo.FunApp.Models.DTOs
 {
     internal class ProductIdsRequest
     {
-        public int[] Ids { get; set; }
+        [JsonPropertyName("ids")]
+        public string[] Ids { get; set; }
 
     }
 }

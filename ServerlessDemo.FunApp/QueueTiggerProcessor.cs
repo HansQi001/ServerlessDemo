@@ -1,24 +1,27 @@
 using AgileObjects.AgileMapper;
 using Azure.Messaging.ServiceBus;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
-using ServerlessDemo.FunApp.Infrastructure;
 using ServerlessDemo.FunApp.Models.DTOs;
 using ServerlessDemo.FunApp.Models.Entities;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace ServerlessDemo.FunApp;
 
 public class QueueTiggerProcessor
 {
     private readonly ILogger<QueueTiggerProcessor> _logger;
-    private readonly AppDbContext _dbContext;
+    private readonly CosmosClient _cosmosClient;
 
     public QueueTiggerProcessor(ILogger<QueueTiggerProcessor> logger
-        , AppDbContext context
+        , CosmosClient cosmosClient
         , IMapper mapper)
     {
         _logger = logger;
-        _dbContext = context;
+        _cosmosClient = cosmosClient;
     }
 
     [Function(nameof(QueueTiggerProcessor))]
@@ -33,36 +36,93 @@ public class QueueTiggerProcessor
 
         if (messageContent?.Ids?.Length > 0)
         {
-            for (var i = 0; i < messageContent.Ids.Length; i++)
-            {
-                var product = new Product
-                {
-                    Id = messageContent.Ids[i],
-                    Status = "Inactive",
-                    LastModifiedAt = DateTime.UtcNow
-                };
-
-                var entry = _dbContext.Entry(product);
-                entry.Property(p => p.Status).IsModified = true;
-                entry.Property(p => p.LastModifiedAt).IsModified = true;
-            }
-
             try
             {
-                await _dbContext.SaveChangesAsync();
+                var container = _cosmosClient.GetContainer("ServerlessDemo", "Products");
+                /* // version 1
+                var queryDef = new QueryDefinition(
+                                    "SELECT * FROM c WHERE ARRAY_CONTAINS(@ids, c.id)"
+                                ).WithParameter("@ids", messageContent.Ids);
+
+                var feedIterator = container.GetItemQueryIterator<Product>(queryDef);
+
+                while (feedIterator.HasMoreResults)
+                {
+                    var page = await feedIterator.ReadNextAsync();
+                    var tasks = page.Select(async p =>
+                    {
+                        p.Status = "Inactive";
+                        p.LastModifiedAt = DateTime.UtcNow;
+                        await container.UpsertItemAsync(p, new PartitionKey(p.Id));
+                    }
+                    ).ToList();
+
+                    await Task.WhenAll(tasks);
+                }
+                */
+                /* // version 2
+                var throttler = new SemaphoreSlim(10);
+
+                var tasks = messageContent.Ids.Select(async id =>
+                    {
+                        await throttler.WaitAsync();
+                        try
+                        {
+                            var p = await container.ReadItemAsync<Product>(id, new PartitionKey(id));
+                            var product = p.Resource;
+                            product.Status = "Inactive";
+                            product.LastModifiedAt = DateTime.UtcNow;
+                            await container.UpsertItemAsync(product, new PartitionKey(product.Id));
+                        }
+                        finally
+                        {
+                            throttler.Release();
+                        }
+
+                    }
+                );
+
+                await Task.WhenAll(tasks);
+                */
+
+                // version 3
+                var throttler = new SemaphoreSlim(10);
+
+                var tasks = messageContent.Ids.Select(async id =>
+                {
+                    await throttler.WaitAsync();
+                    try
+                    {
+                        await container.PatchItemAsync<Product>(
+                            id,
+                            new PartitionKey(id),
+                            [
+                                PatchOperation.Replace("/status", "Inactive"),
+                                PatchOperation.Replace("/lastModifiedAt", DateTime.UtcNow.ToString("o"))
+                            ]
+                        );
+
+                    }
+                    catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+                    {
+                        _logger.LogWarning("Product {Id} not found", id);
+                    }
+
+                    finally
+                    {
+                        throttler.Release();
+                    }
+
+                }
+                );
+
+                await Task.WhenAll(tasks);
+
                 _logger.LogInformation($"Products updated");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.Message);
-                _logger.LogError(ex.InnerException?.Message);
-            }
-
-            var updatedProduct = await _dbContext.Products.FindAsync(messageContent.Ids[0]);
-            if (updatedProduct != null)
-            {
-                _logger.LogInformation($"The first one's Status: {updatedProduct.Status}");
-                _logger.LogInformation($"And Last Modified: {updatedProduct.LastModifiedAt?.ToString() ?? string.Empty}");
+                _logger.LogError(ex, "Error updating products");
             }
         }
 

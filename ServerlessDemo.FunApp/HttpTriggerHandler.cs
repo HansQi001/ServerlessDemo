@@ -1,12 +1,13 @@
 using AgileObjects.AgileMapper;
 using Azure.Messaging.ServiceBus;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ServerlessDemo.FunApp.Infrastructure;
 using ServerlessDemo.FunApp.Models.DTOs;
+using ServerlessDemo.FunApp.Models.Entities;
+using System.Net;
 using System.Text.Json;
 using System.Web;
 
@@ -15,17 +16,17 @@ namespace ServerlessDemo.FunApp;
 public class HttpTriggerHandler
 {
     private readonly ILogger<HttpTriggerHandler> _logger;
-    private readonly AppDbContext _dbContext;
+    private readonly CosmosClient _cosmosClient;
     private readonly IMapper _mapper;
     private readonly IHostEnvironment _env;
 
     public HttpTriggerHandler(ILogger<HttpTriggerHandler> logger
-        , AppDbContext context
+        , CosmosClient cosmosClient
         , IHostEnvironment env
         , IMapper mapper)
     {
         _logger = logger;
-        _dbContext = context;
+        _cosmosClient = cosmosClient;
         _mapper = mapper;
         _env = env;
     }
@@ -37,27 +38,34 @@ public class HttpTriggerHandler
         {
             _logger.LogInformation("Start streaming the products");
         }
-
         var query = HttpUtility.ParseQueryString(request.Url.Query);
 
-        int.TryParse(query["productid"] ?? string.Empty, out int productid);
-
-        var response = request.CreateResponse();
-        // set the response type to be x-ndjson, the browser won't show the result on page but download it as a file
+        var pid = query["id"];
+        var response = request.CreateResponse(HttpStatusCode.OK);
         response.Headers.Add("Content-Type", "application/x-ndjson");
 
-        var products = _dbContext.Products.AsNoTracking()
-            .Where(p => productid == 0 || p.Id == productid)
-            .Select(p => _mapper.Map(p).ToANew<ProductSummaryDTO>())
-            //.ProjectUsing(_mapper) // EF-friendly projection
-            //.To<ProductSummaryDTO>()
-            .AsAsyncEnumerable();
+        var container = _cosmosClient.GetContainer("ServerlessDemo", "Products");
 
-        await foreach (var product in products)
+        await using var writer = new StreamWriter(response.Body);
+        using var feedIterator = container.GetItemQueryIterator<Product>(
+            $"SELECT * FROM c {(string.IsNullOrEmpty(pid) 
+                    ? string.Empty : $" where c.id='{pid}'")}");
+
+        while (feedIterator.HasMoreResults)
         {
-            var json = JsonSerializer.Serialize(product);
-            await response.WriteStringAsync(json + "\n");
-            await response.Body.FlushAsync();
+            var page = await feedIterator.ReadNextAsync();
+            foreach (var product in page)
+            {
+                var dto = _mapper.Map(product).ToANew<ProductSummaryDTO>();
+                // Serialize each product as JSON and write immediately
+                var json = JsonSerializer.Serialize(dto, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                });
+                await writer.WriteLineAsync(json);
+                // push chunk to client
+                await writer.FlushAsync();
+            }
         }
 
         if (_env.IsDevelopment())

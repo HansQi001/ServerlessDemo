@@ -1,26 +1,28 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Newtonsoft.Json;
 
 namespace ServerlessDemo.FunApp.Models.Entities
 {
     public class Product
     {
-        [Key]
-        public int Id { get; set; }
+        [JsonProperty("id")]
+        public string Id { get; set; } = Guid.NewGuid().ToString();
 
-        [Required]
-        [MaxLength(100)]
+        [JsonProperty("name")]
         public string Name { get; set; } = string.Empty;
 
-        [Range(0, double.MaxValue)]
+        [JsonProperty("price")]
         public decimal Price { get; set; }
 
+        [JsonProperty("stock")]
         public int Stock { get; set; }
 
+        [JsonProperty("status")]
         public string Status { get; set; } = "Active";
 
-        [Required]
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        [JsonProperty("createdAt")]
+        public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
-        public DateTime? LastModifiedAt { get; set; }
+        [JsonProperty("lastModifiedAt")]
+        public DateTimeOffset? LastModifiedAt { get; set; }
     }
 }
