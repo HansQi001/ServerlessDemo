@@ -4,19 +4,29 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using ServerlessDemo.FunApp.Models.Entities;
 using ServerlessDemo.FunApp.Models.MappingConfigs;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
 // Register CosmosClient as a singleton
 builder.Services.AddSingleton(sp =>
 {
-    var connectionString = Environment.GetEnvironmentVariable("CosmosDBConnection");
+    var connectionString = Environment.GetEnvironmentVariable("CosmosDBConnection")
+        ?? throw new InvalidOperationException("CosmosDBConnection environment variable is not set.");
+
     return new CosmosClient(connectionString, new CosmosClientOptions { AllowBulkExecution = true });
 });
 
-await SeedTestDataAsync(builder.Services.BuildServiceProvider());
+builder.Services.Configure<JsonSerializerOptions>(options =>
+{
+    options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    options.Converters.Add(new JsonStringEnumConverter());
+});
 
 builder.ConfigureFunctionsWebApplication();
 
@@ -39,16 +49,30 @@ builder.Services
     .ConfigureFunctionsApplicationInsights()
     .AddSingleton(mapper); // Add AgileMapper as a singleton
 
-//builder.Services.AddDbContext<AppDbContext>(options =>
-//{
-//    options.UseInMemoryDatabase("ServerlessDb");
-//});
+var host = builder.Build();
 
+// Create a token that will be cancelled when the host shuts down
+using var cts = CancellationTokenSource.CreateLinkedTokenSource(
+    host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping
+);
 
-builder.Build().Run();
-
-static async Task SeedTestDataAsync(IServiceProvider services)
+Console.CancelKeyPress += (s, e) =>
 {
+    e.Cancel = true;
+    cts.Cancel();
+};
+
+if (builder.Environment.IsDevelopment())
+{
+    await SeedTestDataAsync(host.Services, cts.Token);
+}
+
+await host.RunAsync(cts.Token);
+
+static async Task SeedTestDataAsync(IServiceProvider services, CancellationToken cancellationToken)
+{
+    var logger = services.GetRequiredService<ILogger<Program>>();
+
     var client = services.GetRequiredService<CosmosClient>();
     var container = client.GetContainer("ServerlessDemo", "Products");
 
@@ -57,15 +81,15 @@ static async Task SeedTestDataAsync(IServiceProvider services)
 
     if (iterator.HasMoreResults)
     {
-        var firstPage = await iterator.ReadNextAsync();
+        var firstPage = await iterator.ReadNextAsync(cancellationToken);
         if (firstPage.Count > 0)
         {
-            Console.WriteLine("Seed data already exists — skipping insert.");
+            logger.LogInformation("Seed data already exists — skipping insert.");
             return;
         }
     }
 
-    Console.WriteLine("No data found — inserting seed products...");
+    logger.LogInformation("No data found — inserting seed products...");
 
     var testProducts = Enumerable.Range(1, 100)
             .Select(i => new Product
@@ -75,22 +99,25 @@ static async Task SeedTestDataAsync(IServiceProvider services)
                 Stock = i % 100
             })
             .ToList();
-    
+
+    var parallelOptions = new ParallelOptions
+    {
+        MaxDegreeOfParallelism = 10,
+        CancellationToken = cancellationToken
+    };
+
     try
     {
-        //await container.UpsertItemAsync(testProducts[0], new PartitionKey(testProducts[0].Id));
+        await Parallel.ForEachAsync(testProducts, parallelOptions, async (p, ct) =>
+        {
+            await container.UpsertItemAsync(p, new PartitionKey(p.Id), cancellationToken: ct);
+        });
 
-        // bulk Upsert
-        var tasks = testProducts.Select(async p =>
-                   await container.UpsertItemAsync(p, new PartitionKey(p.Id)));
-
-        await Task.WhenAll(tasks);
-
-        Console.WriteLine("Seed data inserted.");
+        logger.LogInformation("Seed data inserted: {Count} items", testProducts.Count);
     }
     catch (Exception ex)
     {
-        Console.WriteLine(ex.ToString());
+        logger.LogError(ex.ToString());
     }
 }
 

@@ -6,8 +6,6 @@ using Microsoft.Extensions.Logging;
 using ServerlessDemo.FunApp.Models.DTOs;
 using ServerlessDemo.FunApp.Models.Entities;
 using System.Net;
-using System.Security.Cryptography;
-using System.Text.Json;
 
 namespace ServerlessDemo.FunApp;
 
