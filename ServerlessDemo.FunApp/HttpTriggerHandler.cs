@@ -46,10 +46,13 @@ public class HttpTriggerHandler
 
         var container = _cosmosClient.GetContainer("ServerlessDemo", "Products");
 
+        QueryDefinition queryDefinition = string.IsNullOrEmpty(pid)
+            ? new QueryDefinition("SELECT * FROM c")
+            : new QueryDefinition("SELECT * FROM c WHERE c.id = @id")
+                    .WithParameter("@id", pid);
+
         await using var writer = new StreamWriter(response.Body);
-        using var feedIterator = container.GetItemQueryIterator<Product>(
-            $"SELECT * FROM c {(string.IsNullOrEmpty(pid) 
-                    ? string.Empty : $" where c.id='{pid}'")}");
+        using var feedIterator = container.GetItemQueryIterator<Product>(queryDefinition);
 
         while (feedIterator.HasMoreResults)
         {
